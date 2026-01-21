@@ -97,8 +97,9 @@ jobs:
         if [ -f $CONFIG_FILE ]; then
           cp $CONFIG_FILE openwrt/.config
         else
-          # 生成默认配置
           cd openwrt
+          # 生成默认配置
+          TARGET_CONFIG=""
           if [ -n "${{ matrix.target }}" ] && [ -n "${{ matrix.subtarget }}" ]; then
             if [ -n "${{ matrix.profile }}" ]; then
               cat > .config << EOF
@@ -122,11 +123,10 @@ EOF
 
     - name: Apply Kernel Fixes
       run: |
-        # 解决常见的编译问题
         cd openwrt
-        # 如果有补丁文件，应用它们
+        # 解决常见的编译问题
         if [ -d ../patches ]; then
-          find ../patches -name "*.patch" | while read patch; do
+          find ../patches -name "*.patch" -type f | while read patch; do
             echo "Applying patch: $patch"
             patch -p1 -i "$patch" || true
           done
@@ -136,7 +136,10 @@ EOF
       run: |
         cd openwrt
         make defconfig
-        make menuconfig
+        # 检查是否需要运行 menuconfig
+        if [ ! -f .config ] || ! grep -q "CONFIG_TARGET" .config; then
+          make menuconfig || true
+        fi
 
     - name: Download Packages
       run: |
@@ -154,7 +157,10 @@ EOF
         # 获取设备名称
         DEVICE_NAME=$(grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' | head -1)
         if [ -z "$DEVICE_NAME" ]; then
-          DEVICE_NAME=$(grep '^CONFIG_TARGET_BOARD=' .config | cut -d'=' -f2 | tr -d '"')
+          DEVICE_NAME=$(grep '^CONFIG_TARGET_BOARD=' .config | cut -d'=' -f2 | tr -d '"' | head -1)
+        fi
+        if [ -z "$DEVICE_NAME" ]; then
+          DEVICE_NAME="${{ matrix.target }}-${{ matrix.subtarget }}"
         fi
         echo "DEVICE_NAME=${DEVICE_NAME}" >> $GITHUB_ENV
         echo "BUILD_DATE=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
@@ -233,13 +239,3 @@ EOF
         delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Notify Build Status
-      if: always()
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#builds'
-        username: 'ImmortalWrt Builder'
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
