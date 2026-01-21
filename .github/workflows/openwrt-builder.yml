@@ -33,7 +33,6 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     
-    # 删除strategy.matrix部分，改用环境变量
     env:
       TARGET: ${{ github.event.inputs.target || 'x86_64' }}
       SUBTARGET: ${{ github.event.inputs.subtarget || 'generic' }}
@@ -97,24 +96,6 @@ jobs:
         fi
         if [ -f $CONFIG_FILE ]; then
           cp $CONFIG_FILE openwrt/.config
-        else
-          cd openwrt
-          # 生成默认配置
-          TARGET_CONFIG=""
-          if [ -n "$TARGET" ] && [ -n "$SUBTARGET" ]; then
-            if [ -n "$PROFILE" ]; then
-              cat > .config << EOF
-CONFIG_TARGET_${TARGET}=y
-CONFIG_TARGET_${TARGET}_${SUBTARGET}=y
-CONFIG_TARGET_${TARGET}_${SUBTARGET}_DEVICE_${PROFILE}=y
-EOF
-            else
-              cat > .config << EOF
-CONFIG_TARGET_${TARGET}=y
-CONFIG_TARGET_${TARGET}_${SUBTARGET}=y
-EOF
-            fi
-          fi
         fi
         if [ -f $DIY_P2_SH ]; then
           chmod +x $DIY_P2_SH
