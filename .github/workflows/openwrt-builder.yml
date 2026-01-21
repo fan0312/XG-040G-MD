@@ -32,11 +32,12 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        target: [${{ github.event.inputs.target || 'x86_64' }}]
-        subtarget: [${{ github.event.inputs.subtarget || 'generic' }}]
-        profile: [${{ github.event.inputs.profile || '' }}]
+    
+    # 删除strategy.matrix部分，改用环境变量
+    env:
+      TARGET: ${{ github.event.inputs.target || 'x86_64' }}
+      SUBTARGET: ${{ github.event.inputs.subtarget || 'generic' }}
+      PROFILE: ${{ github.event.inputs.profile || '' }}
 
     steps:
     - name: Checkout
@@ -100,17 +101,17 @@ jobs:
           cd openwrt
           # 生成默认配置
           TARGET_CONFIG=""
-          if [ -n "${{ matrix.target }}" ] && [ -n "${{ matrix.subtarget }}" ]; then
-            if [ -n "${{ matrix.profile }}" ]; then
+          if [ -n "$TARGET" ] && [ -n "$SUBTARGET" ]; then
+            if [ -n "$PROFILE" ]; then
               cat > .config << EOF
-CONFIG_TARGET_${{ matrix.target }}=y
-CONFIG_TARGET_${{ matrix.target }}_${{ matrix.subtarget }}=y
-CONFIG_TARGET_${{ matrix.target }}_${{ matrix.subtarget }}_DEVICE_${{ matrix.profile }}=y
+CONFIG_TARGET_${TARGET}=y
+CONFIG_TARGET_${TARGET}_${SUBTARGET}=y
+CONFIG_TARGET_${TARGET}_${SUBTARGET}_DEVICE_${PROFILE}=y
 EOF
             else
               cat > .config << EOF
-CONFIG_TARGET_${{ matrix.target }}=y
-CONFIG_TARGET_${{ matrix.target }}_${{ matrix.subtarget }}=y
+CONFIG_TARGET_${TARGET}=y
+CONFIG_TARGET_${TARGET}_${SUBTARGET}=y
 EOF
             fi
           fi
@@ -152,6 +153,7 @@ EOF
       run: |
         cd openwrt
         echo "Building with $(nproc) threads"
+        echo "Target: $TARGET, Subtarget: $SUBTARGET, Profile: $PROFILE"
         make -j$(nproc) || make -j2 || make -j1 V=s
         
         # 获取设备名称
@@ -160,7 +162,7 @@ EOF
           DEVICE_NAME=$(grep '^CONFIG_TARGET_BOARD=' .config | cut -d'=' -f2 | tr -d '"' | head -1)
         fi
         if [ -z "$DEVICE_NAME" ]; then
-          DEVICE_NAME="${{ matrix.target }}-${{ matrix.subtarget }}"
+          DEVICE_NAME="${TARGET}-${SUBTARGET}"
         fi
         echo "DEVICE_NAME=${DEVICE_NAME}" >> $GITHUB_ENV
         echo "BUILD_DATE=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
@@ -209,7 +211,7 @@ EOF
           
           **Device:** ${{ env.DEVICE_NAME }}
           **Build Date:** ${{ env.BUILD_DATE }}
-          **Target:** ${{ matrix.target }}/${{ matrix.subtarget }}
+          **Target:** ${{ env.TARGET }}/${{ env.SUBTARGET }}
           
           ## Firmware Files
           
